@@ -1,1 +1,8 @@
-{}
+{
+  "private-test": {
+    "name": "private-test",
+    "version": "0.1.0",
+    "homepage": "https://github.com/xmagpie/private-test",
+    "link": "git+https://github.com/xmagpie/private-test@v0.1.0#egg=private-test-0.1.0"
+  }
+}
