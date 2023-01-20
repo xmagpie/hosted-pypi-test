@@ -3,6 +3,6 @@
     "name": "private-test",
     "version": "0.1.0",
     "homepage": "https://github.com/xmagpie/private-test",
-    "link": "git+ssh://git@github.com:xmagpie/private-test@v0.1.0#egg=private-test-0.1.0"
+    "link": "git+ssh://git@github.com/xmagpie/private-test.git#egg=private-test-0.1.0"
   }
 }
