@@ -82,7 +82,7 @@ def update(pkg_name, version, link):
         index.write(soup.prettify("utf-8"))
 
     # Change the package page
-    index_file = os.path.join(norm_pkg_name, INDEX_FILE) 
+    index_file = os.path.join(norm_pkg_name, INDEX_FILE)
     with open(index_file) as html_file:
         soup = BeautifulSoup(html_file, "html.parser")
 
