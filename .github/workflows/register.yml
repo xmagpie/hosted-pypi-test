@@ -56,8 +56,8 @@ jobs:
         PKG_HOMEPAGE: ${{ inputs.homepage }}
         PKG_LINK: ${{ inputs.link }}
       run: |
-        pip install beautifulsoup4
-        python .github/actions.py 
+        pip install jinja2
+        python .github/actions.py
     - name: Create Pull Request
       uses: peter-evans/create-pull-request@v3
       with:

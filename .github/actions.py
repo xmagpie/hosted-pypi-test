@@ -1,144 +1,122 @@
 import os
 import json
-import copy
 import re
 import shutil
+from pathlib import Path
 
-from bs4 import BeautifulSoup
+import jinja2
 
 
-INDEX_FILE = "index.html"
-TEMPLATE_FILE = "pkg_template.html"
-YAML_ACTION_FILES = [".github/workflows/delete.yml", ".github/workflows/update.yml"]
+PACKAGE_INDEX = Path("index.json")
+TEMPLATE_DIR = Path('templates')
+INDEX_TEMPLATE = Path("index.html")
+PKG_TEPLATE = Path("pkg.html")
 
 
 def normalize(name):
-    """ From PEP503 : https://www.python.org/dev/peps/pep-0503/ """
+    """From PEP503 : https://www.python.org/dev/peps/pep-0503/"""
     return re.sub(r"[-_.]+", "-", name).lower()
 
 
-def package_exists(soup, package_name):
-    package_ref = package_name + "/"
-    for anchor in soup.find_all('a'):
-        if anchor['href'] == package_ref:
-            return True
-    return False
+class ActionHandler:
+    def __init__(
+        self,
+        index_file: Path = PACKAGE_INDEX,
+        template_dir: Path = TEMPLATE_DIR,
+    ):
+        self._index_file = index_file
+        self._template_dir = template_dir
 
+        self._env = jinja2.Environment(
+            loader=jinja2.FileSystemLoader(TEMPLATE_DIR)
+        )
 
-def register(pkg_name, version, author, short_desc, long_desc, homepage, link):
-    # Read our index first
-    with open(INDEX_FILE) as html_file:
-        soup = BeautifulSoup(html_file, "html.parser")
-    norm_pkg_name = normalize(pkg_name)
+        self._index = {}
+        if self._index_file.exists():
+            with open(self._index_file, encoding='utf-8') as f:
+                self._index = json.load(f)
 
-    if package_exists(soup, norm_pkg_name):
-        raise ValueError("Package {} seems to already exists".format(norm_pkg_name))
+    def is_package_registered(self, pkg_name: str):
+        return pkg_name in self._index
 
-    # Create a new anchor element for our new package
-    last_anchor = soup.find_all('a')[-1]        # Copy the last anchor element
-    new_anchor = copy.copy(last_anchor)
-    new_anchor['href'] = "{}/".format(norm_pkg_name)
-    new_anchor.contents[0].replace_with(pkg_name)
-    spans = new_anchor.find_all('span')
-    spans[1].string = version       # First span contain the version
-    spans[2].string = short_desc    # Second span contain the short description
+    def register(self, pkg_name: str, version: str, homepage: str, link: str):
+        norm_pkg_name = normalize(pkg_name)
+        if self.is_package_registered(norm_pkg_name):
+            raise ValueError(f'Package {norm_pkg_name} already registered')
 
-    # Add it to our index and save it
-    last_anchor.insert_after(new_anchor)
-    with open(INDEX_FILE, 'wb') as index:
-        index.write(soup.prettify("utf-8"))
+        self._index[norm_pkg_name] = dict(
+            name=pkg_name,
+            version=version,
+            homepage=homepage,
+            link=f'{link}#egg={norm_pkg_name}-{version}',
+        )
 
-    # Then get the template, replace the content and write to the right place
-    with open(TEMPLATE_FILE) as temp_file:
-        template = temp_file.read()
+        self.dump_index()
+        self.dump_pkg(norm_pkg_name)
 
-    template = template.replace("_package_name", pkg_name)
-    template = template.replace("_version", version)
-    template = template.replace("_link", "{}#egg={}-{}".format(link, norm_pkg_name, version))
-    template = template.replace("_homepage", homepage)
-    template = template.replace("_author", author)
-    template = template.replace("_long_description", long_desc)
+    def dump_pkg(self, norm_pkg_name: str):
+        pkg_template = self._env.get_template(str(PKG_TEPLATE))
+        contents = pkg_template.render(**self._index[norm_pkg_name])
 
-    os.mkdir(norm_pkg_name)
-    package_index = os.path.join(norm_pkg_name, INDEX_FILE)
-    with open(package_index, "w") as f:
-        f.write(template)
+        pkg_path = Path(norm_pkg_name)
+        pkg_path.mkdir(exist_ok=True)
+        with open(pkg_path / 'index.html', 'w', encoding='utf-8') as html:
+            html.write(contents)
 
+    def dump_index(self):
+        with open(self._index_file, 'w', encoding='utf-8') as f:
+            json.dump(self._index, f, indent=2)
 
-def update(pkg_name, version, link):
-    # Read our index first
-    with open(INDEX_FILE) as html_file:
-        soup = BeautifulSoup(html_file, "html.parser")
-    norm_pkg_name = normalize(pkg_name)
+        index_template = self._env.get_template(str(INDEX_TEMPLATE))
+        contents = index_template.render(index=self._index.values())
 
-    if not package_exists(soup, norm_pkg_name):
-        raise ValueError("Package {} seems to not exists".format(norm_pkg_name))
+        with open(INDEX_TEMPLATE, 'w', encoding='utf-8') as html:
+            html.write(contents)
 
-    # Change the version in the main page
-    anchor = soup.find('a', attrs={"href": "{}/".format(norm_pkg_name)})
-    spans = anchor.find_all('span')
-    spans[1].string = version
-    with open(INDEX_FILE, 'wb') as index:
-        index.write(soup.prettify("utf-8"))
+    def update(self, pkg_name: str, version: str, link: str):
+        # FIXME: support storing multiple versions
+        norm_pkg_name = normalize(pkg_name)
 
-    # Change the package page
-    index_file = os.path.join(norm_pkg_name, INDEX_FILE)
-    with open(index_file) as html_file:
-        soup = BeautifulSoup(html_file, "html.parser")
+        if not self.is_package_registered(norm_pkg_name):
+            raise ValueError(f'Package {norm_pkg_name} is not registered')
 
-    # Create a new anchor element for our new version
-    last_anchor = soup.find_all('a')[-1]        # Copy the last anchor element
-    new_anchor = copy.copy(last_anchor)
-    new_anchor['href'] = "{}#egg={}-{}".format(link, norm_pkg_name, version)
+        # FIXME: support omitting args (e.g. link/version) to keep them
+        self._index[norm_pkg_name].update(
+            version=version, link=f'{link}#egg={norm_pkg_name}-{version}'
+        )
 
-    # Add it to our index
-    last_anchor.insert_after(new_anchor)
+        self.dump_index()
+        self.dump_pkg(norm_pkg_name)
 
-    # Change the latest version
-    soup.html.body.div.section.find_all('span')[1].contents[0].replace_with(version) 
+    def delete(self, pkg_name: str):
+        norm_pkg_name = normalize(pkg_name)
 
-    # Save it
-    with open(index_file, 'wb') as index:
-        index.write(soup.prettify("utf-8"))
+        if not self.is_package_registered(norm_pkg_name):
+            raise ValueError('Package {norm_pkg_name} is not registered')
 
+        self._index.pop(norm_pkg_name)
 
-def delete(pkg_name):
-    # Read our index first
-    with open(INDEX_FILE) as html_file:
-        soup = BeautifulSoup(html_file, "html.parser")
-    norm_pkg_name = normalize(pkg_name)
-
-    if not package_exists(soup, norm_pkg_name):
-        raise ValueError("Package {} seems to not exists".format(norm_pkg_name))
-
-    # Remove the package directory
-    shutil.rmtree(norm_pkg_name)
-
-    # Find and remove the anchor corresponding to our package
-    anchor = soup.find('a', attrs={"href": "{}/".format(norm_pkg_name)})
-    anchor.extract()
-    with open(INDEX_FILE, 'wb') as index:
-        index.write(soup.prettify("utf-8"))
+        shutil.rmtree(norm_pkg_name)
+        self.dump_index()
 
 
 def main():
-    # Call the right method, with the right arguments
+    handler = ActionHandler()
     action = os.environ["PKG_ACTION"]
 
     if action == "REGISTER":
-        register(
+        handler.register(
             pkg_name=os.environ["PKG_NAME"],
             version=os.environ["PKG_VERSION"],
-            author=os.environ["PKG_AUTHOR"],
-            short_desc=os.environ["PKG_SHORT_DESC"],
-            long_desc=os.environ["PKG_LONG_DESC"],
             homepage=os.environ["PKG_HOMEPAGE"],
             link=os.environ["PKG_LINK"],
         )
+
     elif action == "DELETE":
-        delete(pkg_name=os.environ["PKG_NAME"])
+        handler.delete(pkg_name=os.environ["PKG_NAME"])
+
     elif action == "UPDATE":
-        update(
+        handler.update(
             pkg_name=os.environ["PKG_NAME"],
             version=os.environ["PKG_VERSION"],
             link=os.environ["PKG_LINK"],

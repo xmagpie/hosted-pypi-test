@@ -82,6 +82,17 @@
    <h6 class="text-header">
     Packages
    </h6>
+   {% for pkg in index %}
+   <a class="card" href="{{ pkg.name }}/">
+     {{ pkg.name }}
+     <span>
+     </span>
+     <span class="version">
+       {{ pkg.version }}
+     </span>
+     <br/>
+   </a>
+   {% endfor %}
   </div>
 
   <script>

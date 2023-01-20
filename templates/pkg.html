@@ -12,6 +12,7 @@
   <script src="https://code.jquery.com/jquery-latest.min.js"></script>
   <!-- Our JS -->
   <script type="text/javascript" src="../pypi_checker.js"></script>
+
   <style>
    body { font-family: "Montserrat"; }
    code {
@@ -47,48 +48,38 @@
     color: darkcyan;
    }
   </style>
+
   <title>
    Pypi - xmagpie
   </title>
  </head>
-  <body>
+
+ <body>
    <div class="container">
     <section class="header">
-     _package_name
+     {{ name }}
      <span>
      </span>
      <span id='latest-version' class="version">
-      _version
+      {{ version }}
      </span>
     </section>
-    <pre id='installdanger' hidden><button class="danger-button" disabled>DANGER ! A higher version of <i>_package_name</i> already exists on PyPi</button></pre>
-    <pre id='installcmd'><code>pip install _package_name --extra-index-url https://<org>.github.io/xmagpie-hosted-pypi/</code></pre>
-    <a href="_link">
+
+    <pre id='installdanger' hidden><button class="danger-button" disabled>DANGER ! A higher version of <i>{{ pkg_name }}</i> already exists on PyPi</button></pre>
+    <pre id='installcmd'><code>pip install {{ pkg_name }} --extra-index-url https://<org>.github.io/xmagpie-hosted-pypi/</code></pre>
+    <a href="{{ link }}">
     </a>
     <hr/>
     <div class="row">
      <div class="three columns">
-      <button onclick="location.href='_homepage'">
+      <button onclick="location.href='{{ homepage }}'">
        Homepage
       </button>
-      <p class="elem">
-       <b>
-        Author :
-       </b>
-       _author
-      </p>
      </div>
-    <div class="nine columns">
-     <h6 class="text-header">
-      Description
-     </h6>
-     <p>
-      _long_description
-     </p>
-    </div>
    </div>
   </div>
-  <script>
+
+   <script>
     function warn_unsafe() {
       document.getElementById('installdanger').hidden = false;
       document.getElementById('installcmd').hidden = true;
@@ -96,7 +87,7 @@
 
     $(document).ready(function(){
       var this_vers = document.getElementById('latest-version').textContent.trim();
-      check_supply_chain_attack("_package_name", this_vers, warn_unsafe);
+      check_supply_chain_attack("{{ pkg_name }}", this_vers, warn_unsafe);
     });
   </script>
  </body>
